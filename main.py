@@ -14,14 +14,26 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 
-FONT_PATH = "/tmp/Prompt-Bold.ttf"
+FONT_PATH = "/tmp/ThaiFont-Bold.ttf"
 
 def ensure_thai_font():
+    if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) < 10000:
+        os.remove(FONT_PATH)
     if not os.path.exists(FONT_PATH):
-        url = "https://github.com"
-        r = requests.get(url, timeout=30)
-        with open(FONT_PATH, "wb") as f:
-            f.write(r.content)
+        urls = (
+            "https://jsdelivr.net",
+            "https://jsdelivr.net",
+            "https://jsdelivr.net"
+        )
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=30)
+                if r.status_code == 200 and len(r.content) > 10000:
+                    with open(FONT_PATH, "wb") as f:
+                        f.write(r.content)
+                    break
+            except Exception:
+                continue
 
 class TTSRequest(BaseModel):
     input: str
@@ -167,15 +179,15 @@ async def generate_reels_video(req: ReelsRequest):
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
         # สร้างคลิปวนลูป 2 วินาที
-        subprocess.run([
+        subprocess.run((
             ffmpeg_exe, "-y", "-framerate", str(fps),
             "-i", f"{frames_dir}/frame_%03d.jpg",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", loop_video_path
-        ], check=True)
+        ), check=True)
 
         # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทย + รวมเสียงคุณนิวัฒน์ในคำสั่งเดียว
-        sub_style = "FontName=Prompt,FontSize=20,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=520"
-        subprocess.run([
+        sub_style = "FontName=Sarabun,FontSize=20,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=520"
+        subprocess.run((
             ffmpeg_exe, "-y",
             "-stream_loop", "-1",
             "-i", loop_video_path,
@@ -186,7 +198,7 @@ async def generate_reels_video(req: ReelsRequest):
             "-c:a", "aac",
             "-shortest",
             final_video_path
-        ], check=True)
+        ), check=True)
 
         return FileResponse(final_video_path, media_type="video/mp4", filename="reels_animation.mp4")
     except Exception:
