@@ -1,3 +1,6 @@
 fastapi
 uvicorn
 edge-tts
+pillow
+imageio-ffmpeg
+requests
