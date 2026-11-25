@@ -22,13 +22,17 @@ class TTSRequest(BaseModel):
 
 class ReelsRequest(BaseModel):
     topic: str = "AI Work Flow Automation"
+    node1: str = "รับข้อมูลอัตโนมัติ"
+    node2: str = "AI ประมวลผล"
+    node3: str = "ส่งผลลัพธ์ทันที"
+    bullets: str = ""
     script: str
     voice: str = "th-TH-NiwatNeural"
     rate: str = "+5%"
 
 @app.get("/")
 def home():
-    return {"status": "Edge TTS & Rich Animation Reels API is running!"}
+    return {"status": "Dynamic Workflow Animation API is running!"}
 
 @app.post("/v1/audio/speech")
 async def generate_speech(req: TTSRequest):
@@ -67,7 +71,7 @@ def format_srt_time(seconds):
 async def generate_reels_video(req: ReelsRequest):
     try:
         if not os.path.exists(FONT_PATH):
-            return Response(content=f"Font file {FONT_PATH} not found in repo!", media_type="text/plain", status_code=500)
+            return Response(content=f"Font file {FONT_PATH} not found!", media_type="text/plain", status_code=500)
 
         job_id = str(uuid.uuid4())
         audio_path = f"/tmp/{job_id}.mp3"
@@ -77,7 +81,7 @@ async def generate_reels_video(req: ReelsRequest):
         frames_dir = f"/tmp/frames_{job_id}"
         os.makedirs(frames_dir, exist_ok=True)
 
-        # 1. สร้างเสียงพากย์และวัดความยาวจริง
+        # 1. สร้างเสียงพากย์
         communicate = edge_tts.Communicate(req.script, req.voice, rate=req.rate)
         last_end = 0.0
         with open(audio_path, "wb") as f:
@@ -89,7 +93,7 @@ async def generate_reels_video(req: ReelsRequest):
 
         total_duration = (last_end + 0.6) if last_end > 0 else 45.0
 
-        # 2. สร้างไฟล์ซับไตเติล (.srt) แบ่งตามประโยคและจำนวนตัวอักษร
+        # 2. สร้างซับไตเติล (.srt)
         raw_sentences = [s.strip() for s in re.split(r'[\n\.!?]+', req.script) if s.strip()]
         total_chars = sum(len(s) for s in raw_sentences) or 1
         curr_t = 0.0
@@ -101,83 +105,113 @@ async def generate_reels_video(req: ReelsRequest):
                 srt_f.write(f"{s}\n\n")
                 curr_t += seg_dur
 
-        # 3. วาดแอนิเมชัน HD 720x1280 วนลูป 2 วินาที (24 เฟรม ที่ 12 FPS)
-        fps = 12
-        loop_seconds = 2
+        # 3. วาดแอนิเมชัน Workflow 3 ขั้นตอนตามเนื้อหาข่าว (วนลูป 3 วินาที = 30 เฟรม)
+        fps = 10
+        loop_seconds = 3
         loop_frames = fps * loop_seconds
         font_brand = ImageFont.truetype(FONT_PATH, 20)
         font_topic = ImageFont.truetype(FONT_PATH, 38)
+        font_step = ImageFont.truetype(FONT_PATH, 18)
+        font_node = ImageFont.truetype(FONT_PATH, 22)
         font_cta = ImageFont.truetype(FONT_PATH, 22)
+
+        nodes_data = (
+            ("STEP 1 : INPUT", req.node1, (16, 185, 129)),
+            ("STEP 2 : AI AGENT", req.node2, (168, 85, 247)),
+            ("STEP 3 : ACTION", req.node3, (56, 189, 248))
+        )
 
         for frame_idx in range(loop_frames):
             phase = (frame_idx / loop_frames) * (2 * math.pi)
-            img = Image.new("RGB", (720, 1280), (253, 244, 232))
+            active_step = frame_idx // 10  # สลับไฮไลต์ทีละกล่อง (0, 1, 2) ทุก 1 วินาที
+
+            img = Image.new("RGB", (720, 1280), (15, 23, 42)) # พื้นหลัง Dark Tech แบบ n8n
             draw = ImageDraw.Draw(img)
 
-            # ตาราง Grid เลื่อนชัดเจน
-            offset = int((frame_idx / loop_frames) * 60)
-            for gx in range(offset, 720, 60):
-                draw.line(((gx, 0), (gx, 1280)), fill=(238, 218, 195), width=3)
-            for gy in range(offset, 1280, 60):
-                draw.line(((0, gy), (720, gy)), fill=(238, 218, 195), width=3)
+            # จุด Grid พื้นหลังสไตล์ n8n Canvas เคลื่อนที่เบาๆ
+            offset = int((frame_idx / loop_frames) * 40)
+            for gx in range(offset, 720, 40):
+                for gy in range(offset, 1280, 40):
+                    draw.ellipse((gx - 2, gy - 2, gx + 2, gy + 2), fill=(51, 65, 85))
 
-            # กรอบนอกสีเปลี่ยนจังหวะ
-            border_color = (249, 115, 22) if (frame_idx % 12 < 6) else (24, 24, 27)
-            draw.rectangle((24, 24, 696, 1256), outline=border_color, width=10)
+            # กรอบนอก
+            draw.rectangle((20, 20, 700, 1260), outline=(56, 189, 248), width=6)
 
             # ป้ายชื่อเพจด้านบน
-            draw.rounded_rectangle((56, 85, 365, 130), radius=22, fill=(249, 115, 22))
-            draw.text((74, 95), "AI Work Flow Automation", fill=(255, 255, 255), font=font_brand)
+            draw.rounded_rectangle((50, 75, 375, 120), radius=22, fill=(56, 189, 248))
+            draw.text((68, 85), "AI Work Flow Automation", fill=(15, 23, 42), font=font_brand)
 
-            # พาดหัว Topic ด้านบน
-            topic_lines = wrap_thai_text(req.topic, font_topic, 600, draw)[:2]
-            ty = 155
+            # พาดหัว Topic ประจำวัน
+            topic_lines = wrap_thai_text(req.topic, font_topic, 610, draw)[:2]
+            ty = 145
             for line in topic_lines:
-                draw.text((56, ty), line, fill=(24, 24, 27), font=font_topic)
+                draw.text((50, ty), line, fill=(255, 255, 255), font=font_topic)
                 ty += 50
 
-            # หุ่นยนต์ Pixel AI ลอยขึ้นลงชัดเจน (35px) + ไฟกะพริบ + ปากพูด
-            bounce = int(math.sin(phase) * 35)
-            cx, cy = 360, 480 + bounce
-            draw.rectangle((cx - 135, cy - 135, cx + 148, cy + 148), fill=(24, 24, 27))
-            draw.rectangle((cx - 145, cy - 145, cx + 138, cy + 138), fill=(255, 237, 213), outline=(24, 24, 27), width=6)
-            draw.rectangle((cx - 75, cy - 60, cx + 75, cy + 60), fill=(255, 255, 255), outline=(24, 24, 27), width=6)
-            eye_shift = int(math.cos(phase) * 14)
-            draw.rectangle((cx - 48 + eye_shift, cy - 25, cx - 18 + eye_shift, cy + 5), fill=(249, 115, 22))
-            draw.rectangle((cx + 18 + eye_shift, cy - 25, cx + 48 + eye_shift, cy + 5), fill=(249, 115, 22))
-            mouth_w = 20 + int(abs(math.sin(phase * 4)) * 38)
-            draw.rectangle((cx - mouth_w, cy + 22, cx + mouth_w, cy + 40), fill=(24, 24, 27))
-            draw.line(((cx, cy - 60), (cx, cy - 98)), fill=(24, 24, 27), width=6)
-            bulb_color = (239, 68, 68) if (frame_idx % 6 < 3) else (250, 204, 21)
-            draw.ellipse((cx - 15, cy - 122, cx + 15, cy - 92), fill=bulb_color, outline=(24, 24, 27), width=4)
+            # วาดกล่อง Workflow 3 ขั้นตอนแนวตั้งที่สว่างไฮไลต์และขยับตามลำดับการทำงาน
+            box_y = 285
+            for idx, (step_label, node_text, accent_color) in enumerate(nodes_data):
+                is_active = (idx == active_step)
+                scale_offset = -8 if is_active else 0
+                bg_color = (30, 41, 59) if not is_active else (51, 65, 85)
+                border_w = 6 if is_active else 3
 
-            # แถบคลื่นเสียง Equalizer 7 แท่งเต้นขึ้นลงตลอดเวลา (เห็นความเคลื่อนไหวชัดเจน 100%)
-            bar_x = 185
-            for b in range(7):
-                bar_h = 20 + int(abs(math.sin(phase * 2 + b * 0.9)) * 65)
-                draw.rounded_rectangle((bar_x, 735 - bar_h, bar_x + 36, 735), radius=8, fill=(249, 115, 22), outline=(24, 24, 27), width=3)
-                bar_x += 52
+                # วาดกล่อง Node
+                draw.rounded_rectangle(
+                    (70 + scale_offset, box_y + scale_offset, 650 - scale_offset, box_y + 105 - scale_offset),
+                    radius=18, fill=bg_color, outline=accent_color, width=border_w
+                )
+                # แถบสีด้านซ้ายของ Node
+                draw.rounded_rectangle(
+                    (70 + scale_offset, box_y + scale_offset, 92 + scale_offset, box_y + 105 - scale_offset),
+                    radius=8, fill=accent_color
+                )
+                # ข้อความใน Node
+                draw.text((115, box_y + 16), step_label, fill=accent_color, font=font_step)
+                clean_node = wrap_thai_text(node_text, font_node, 500, draw)[0] if node_text else ""
+                draw.text((115, box_y + 48), clean_node, fill=(255, 255, 255), font=font_node)
+
+                # จุดไฟสถานะวิ่งด้านขวา
+                if is_active:
+                    pulse = int(abs(math.sin(phase * 3)) * 6)
+                    draw.ellipse((605 - pulse, box_y + 42 - pulse, 625 + pulse, box_y + 62 + pulse), fill=accent_color)
+
+                # วาดเส้นเชื่อมและจุดวิ่งระหว่างกล่อง
+                if idx < 2:
+                    line_top = box_y + 108
+                    line_bot = box_y + 148
+                    draw.line(((360, line_top), (360, line_bot)), fill=(100, 116, 139), width=4)
+                    dot_y = line_top + int(((frame_idx % 10) / 10.0) * (line_bot - line_top))
+                    draw.ellipse((353, dot_y - 7, 367, dot_y + 7), fill=(56, 189, 248))
+
+                box_y += 150
 
             # กล่องพื้นหลังซับไตเติลตรงกลางล่าง
-            draw.rounded_rectangle((56, 785, 672, 975), radius=18, fill=(24, 24, 27))
-            draw.rounded_rectangle((48, 775, 664, 965), radius=18, fill=(255, 255, 255), outline=(24, 24, 27), width=5)
+            draw.rounded_rectangle((48, 765, 672, 965), radius=18, fill=(15, 23, 42), outline=(56, 189, 248), width=4)
+
+            # แถบคลื่นเสียงเล็กๆ ด้านล่างซับไตเติล
+            bar_x = 225
+            for b in range(7):
+                bar_h = 8 + int(abs(math.sin(phase * 3 + b)) * 28)
+                draw.rounded_rectangle((bar_x, 1025 - bar_h, bar_x + 24, 1025), radius=6, fill=(56, 189, 248))
+                bar_x += 40
 
             # ข้อความ CTA ด้านล่างสุด
-            draw.text((82, 1075), "กดติดตาม & คอมเมนต์ 'สนใจ' เพื่อรับเทมเพลตฟรี!", fill=(120, 53, 15), font=font_cta)
+            draw.text((82, 1075), "กดติดตาม & คอมเมนต์ 'สนใจ' เพื่อรับเทมเพลตฟรี!", fill=(148, 163, 184), font=font_cta)
 
             img.save(f"{frames_dir}/frame_{frame_idx:03d}.jpg", quality=85)
 
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
-        # สร้างคลิปวนลูป 2 วินาที
+        # สร้างคลิปวนลูป 3 วินาที
         subprocess.run((
             ffmpeg_exe, "-y", "-framerate", str(fps),
             "-i", f"{frames_dir}/frame_%03d.jpg",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", loop_video_path
         ), check=True)
 
-        # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทย + รวมเสียงคุณนิวัฒน์
-        sub_style = "FontName=Tahoma,FontSize=15,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=350"
+        # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทยสีขาวคมชัด + รวมเสียงคุณนิวัฒน์
+        sub_style = "FontName=Tahoma,FontSize=15,PrimaryColour=&H00FFFFFF,OutlineColour=&H000F172A,BorderStyle=1,Outline=2,Alignment=2,MarginV=355"
         subprocess.run((
             ffmpeg_exe, "-y",
             "-stream_loop", "-1",
