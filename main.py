@@ -28,7 +28,7 @@ class ReelsRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "Edge TTS & Fast Reels API is running!"}
+    return {"status": "Edge TTS & Rich Animation Reels API is running!"}
 
 @app.post("/v1/audio/speech")
 async def generate_speech(req: TTSRequest):
@@ -101,8 +101,8 @@ async def generate_reels_video(req: ReelsRequest):
                 srt_f.write(f"{s}\n\n")
                 curr_t += seg_dur
 
-        # 3. วาดแอนิเมชัน HD 720x1280 วนลูป 2 วินาที (20 เฟรม — เรนเดอร์เสร็จใน 10 วินาที!)
-        fps = 10
+        # 3. วาดแอนิเมชัน HD 720x1280 วนลูป 2 วินาที (24 เฟรม ที่ 12 FPS)
+        fps = 12
         loop_seconds = 2
         loop_frames = fps * loop_seconds
         font_brand = ImageFont.truetype(FONT_PATH, 20)
@@ -114,15 +114,16 @@ async def generate_reels_video(req: ReelsRequest):
             img = Image.new("RGB", (720, 1280), (253, 244, 232))
             draw = ImageDraw.Draw(img)
 
-            # ตาราง Grid เคลื่อนไหววนลูป
+            # ตาราง Grid เลื่อนชัดเจน
             offset = int((frame_idx / loop_frames) * 60)
             for gx in range(offset, 720, 60):
-                draw.line(((gx, 0), (gx, 1280)), fill=(242, 228, 210), width=2)
+                draw.line(((gx, 0), (gx, 1280)), fill=(238, 218, 195), width=3)
             for gy in range(offset, 1280, 60):
-                draw.line(((0, gy), (720, gy)), fill=(242, 228, 210), width=2)
+                draw.line(((0, gy), (720, gy)), fill=(238, 218, 195), width=3)
 
-            # กรอบนอก
-            draw.rectangle((24, 24, 696, 1256), outline=(24, 24, 27), width=8)
+            # กรอบนอกสีเปลี่ยนจังหวะ
+            border_color = (249, 115, 22) if (frame_idx % 12 < 6) else (24, 24, 27)
+            draw.rectangle((24, 24, 696, 1256), outline=border_color, width=10)
 
             # ป้ายชื่อเพจด้านบน
             draw.rounded_rectangle((56, 85, 365, 130), radius=22, fill=(249, 115, 22))
@@ -135,23 +136,31 @@ async def generate_reels_video(req: ReelsRequest):
                 draw.text((56, ty), line, fill=(24, 24, 27), font=font_topic)
                 ty += 50
 
-            # หุ่นยนต์ Pixel AI ขยับขึ้นลง + ขยับตา + ขยับปากวนลูป
-            bounce = int(math.sin(phase) * 12)
-            cx, cy = 360, 520 + bounce
-            draw.rectangle((cx - 140, cy - 140, cx + 152, cy + 152), fill=(24, 24, 27))
-            draw.rectangle((cx - 150, cy - 150, cx + 142, cy + 142), fill=(255, 237, 213), outline=(24, 24, 27), width=6)
+            # หุ่นยนต์ Pixel AI ลอยขึ้นลงชัดเจน (35px) + ไฟกะพริบ + ปากพูด
+            bounce = int(math.sin(phase) * 35)
+            cx, cy = 360, 480 + bounce
+            draw.rectangle((cx - 135, cy - 135, cx + 148, cy + 148), fill=(24, 24, 27))
+            draw.rectangle((cx - 145, cy - 145, cx + 138, cy + 138), fill=(255, 237, 213), outline=(24, 24, 27), width=6)
             draw.rectangle((cx - 75, cy - 60, cx + 75, cy + 60), fill=(255, 255, 255), outline=(24, 24, 27), width=6)
-            eye_shift = int(math.cos(phase) * 8)
-            draw.rectangle((cx - 45 + eye_shift, cy - 25, cx - 18 + eye_shift, cy + 5), fill=(249, 115, 22))
-            draw.rectangle((cx + 18 + eye_shift, cy - 25, cx + 45 + eye_shift, cy + 5), fill=(249, 115, 22))
-            mouth_w = 26 + int(abs(math.sin(phase * 3)) * 30)
-            draw.rectangle((cx - mouth_w, cy + 24, cx + mouth_w, cy + 38), fill=(24, 24, 27))
+            eye_shift = int(math.cos(phase) * 14)
+            draw.rectangle((cx - 48 + eye_shift, cy - 25, cx - 18 + eye_shift, cy + 5), fill=(249, 115, 22))
+            draw.rectangle((cx + 18 + eye_shift, cy - 25, cx + 48 + eye_shift, cy + 5), fill=(249, 115, 22))
+            mouth_w = 20 + int(abs(math.sin(phase * 4)) * 38)
+            draw.rectangle((cx - mouth_w, cy + 22, cx + mouth_w, cy + 40), fill=(24, 24, 27))
             draw.line(((cx, cy - 60), (cx, cy - 98)), fill=(24, 24, 27), width=6)
-            draw.ellipse((cx - 12, cy - 118, cx + 12, cy - 94), fill=(249, 115, 22), outline=(24, 24, 27), width=4)
+            bulb_color = (239, 68, 68) if (frame_idx % 6 < 3) else (250, 204, 21)
+            draw.ellipse((cx - 15, cy - 122, cx + 15, cy - 92), fill=bulb_color, outline=(24, 24, 27), width=4)
+
+            # แถบคลื่นเสียง Equalizer 7 แท่งเต้นขึ้นลงตลอดเวลา (เห็นความเคลื่อนไหวชัดเจน 100%)
+            bar_x = 185
+            for b in range(7):
+                bar_h = 20 + int(abs(math.sin(phase * 2 + b * 0.9)) * 65)
+                draw.rounded_rectangle((bar_x, 735 - bar_h, bar_x + 36, 735), radius=8, fill=(249, 115, 22), outline=(24, 24, 27), width=3)
+                bar_x += 52
 
             # กล่องพื้นหลังซับไตเติลตรงกลางล่าง
-            draw.rounded_rectangle((56, 795, 672, 975), radius=18, fill=(24, 24, 27))
-            draw.rounded_rectangle((48, 785, 664, 965), radius=18, fill=(255, 255, 255), outline=(24, 24, 27), width=5)
+            draw.rounded_rectangle((56, 785, 672, 975), radius=18, fill=(24, 24, 27))
+            draw.rounded_rectangle((48, 775, 664, 965), radius=18, fill=(255, 255, 255), outline=(24, 24, 27), width=5)
 
             # ข้อความ CTA ด้านล่างสุด
             draw.text((82, 1075), "กดติดตาม & คอมเมนต์ 'สนใจ' เพื่อรับเทมเพลตฟรี!", fill=(120, 53, 15), font=font_cta)
@@ -168,7 +177,7 @@ async def generate_reels_video(req: ReelsRequest):
         ), check=True)
 
         # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทย + รวมเสียงคุณนิวัฒน์
-        sub_style = "FontName=Tahoma,FontSize=15,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=345"
+        sub_style = "FontName=Tahoma,FontSize=15,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=350"
         subprocess.run((
             ffmpeg_exe, "-y",
             "-stream_loop", "-1",
