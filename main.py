@@ -50,7 +50,7 @@ def wrap_thai_text(text, font, max_width, draw):
     for ch in text:
         test = current + ch
         bbox = draw.textbbox((0, 0), test, font=font)
-        if bbox[2] - bbox[0] <= max_width:
+        if (bbox[2] - bbox[0]) <= max_width:
             current = test
         else:
             if current:
@@ -69,7 +69,7 @@ async def generate_reels_video(req: ReelsRequest):
     frames_dir = f"/tmp/frames_{job_id}"
     os.makedirs(frames_dir, exist_ok=True)
 
-    # 1. สร้างเสียงพากย์และเก็บเวลา (Timestamps) ของแต่ละประโยค
+    # 1. สร้างเสียงพากย์และเก็บเวลา (Timestamps)
     communicate = edge_tts.Communicate(req.script, req.voice, rate=req.rate)
     subtitles = []
     with open(audio_path, "wb") as f:
@@ -81,9 +81,9 @@ async def generate_reels_video(req: ReelsRequest):
                 dur_sec = chunk["duration"] / 10_000_000
                 subtitles.append({"start": start_sec, "end": start_sec + dur_sec, "text": chunk["text"]})
 
-    # จัดกลุ่มคำเป็นประโยคสั้นๆ สำหรับขึ้นซับไตเติลให้อ่านง่าย
+    # จัดกลุ่มประโยคสำหรับขึ้นซับไตเติล
     raw_sentences = [s.strip() for s in re.split(r'[\n\.!?]+', req.script) if s.strip()]
-    total_duration = subtitles[-1]["end"] + 0.8 if subtitles else 10.0
+    total_duration = subtitles[-1]["end"] + 0.8 if subtitles else 45.0
     total_chars = sum(len(s) for s in raw_sentences) or 1
 
     timed_captions = []
@@ -93,7 +93,7 @@ async def generate_reels_video(req: ReelsRequest):
         timed_captions.append((curr_t, curr_t + seg_dur, s))
         curr_t += seg_dur
 
-    # 2. วาดเฟรมแอนิเมชัน 1080x1920 ที่ 15 FPS (ประหยัด RAM และลื่นไหล)
+    # 2. วาดเฟรมแอนิเมชัน 1080x1920 ที่ 15 FPS
     fps = 15
     total_frames = int(math.ceil(total_duration * fps))
     font_brand = ImageFont.truetype(FONT_PATH, 28)
@@ -103,21 +103,21 @@ async def generate_reels_video(req: ReelsRequest):
 
     for frame_idx in range(total_frames):
         t = frame_idx / fps
-        img = Image.new("RGB", (1080, 1920), (253, 244, 232)) # พื้นหลังครีมสไตล์ Retro Tech
+        img = Image.new("RGB", (1080, 1920), (253, 244, 232))
         draw = ImageDraw.Draw(img)
 
-        # วาดตาราง Grid เคลื่อนไหวเบาๆ ด้านหลัง
+        # ตาราง Grid เคลื่อนไหว
         offset = int((t * 30) % 80)
         for gx in range(offset, 1080, 80):
             draw.line([(gx, 0), (gx, 1920)], fill=(242, 228, 210), width=2)
         for gy in range(offset, 1920, 80):
             draw.line([(0, gy), (1080, gy)], fill=(242, 228, 210), width=2)
 
-        # กรอบนอกสไตล์การ์ด Modern Retro
-        draw.rectangle([36, 36, 1044, 1884], outline=(24, 24, 27), width=10)
+        # กรอบนอก
+        draw.rectangle([30, 30, 1050, 1890], outline=(24, 24, 27), width=10)
 
         # ป้ายชื่อเพจด้านบน
-        draw.rounded_rectangle([80, 130, 560, 195], radius=30, fill=(249, 115, 22))
+        draw.rounded_rectangle([85, 130, 520, 190], radius=30, fill=(249, 115, 22))
         draw.text((110, 143), "AI Work Flow Automation", fill=(255, 255, 255), font=font_brand)
 
         # พาดหัว Topic ด้านบน
@@ -127,25 +127,21 @@ async def generate_reels_video(req: ReelsRequest):
             draw.text((85, ty), line, fill=(24, 24, 27), font=font_topic)
             ty += 72
 
-        # กล่องแอนิเมชันหุ่นยนต์ AI ขยับขึ้นลงตรงกลางจอ
+        # กล่องแอนิเมชันหุ่นยนต์ AI ขยับขึ้นลง
         bounce = int(math.sin(t * 4) * 18)
         cx, cy = 540, 780 + bounce
-        # เงากล่อง
         draw.rectangle([cx - 210, cy - 210, cx + 230, cy + 230], fill=(24, 24, 27))
-        # ตัวกล่องสีส้ม-ครีม
         draw.rectangle([cx - 225, cy - 225, cx + 215, cy + 215], fill=(255, 237, 213), outline=(24, 24, 27), width=8)
-        # วาดหน้าหุ่นยนต์ Pixel AI ขยับตา
         draw.rectangle([cx - 110, cy - 90, cx + 110, cy + 90], fill=(255, 255, 255), outline=(24, 24, 27), width=8)
         eye_shift = int(math.cos(t * 3) * 10)
         draw.rectangle([cx - 65 + eye_shift, cy - 35, cx - 25 + eye_shift, cy + 5], fill=(249, 115, 22))
         draw.rectangle([cx + 25 + eye_shift, cy - 35, cx + 65 + eye_shift, cy + 5], fill=(249, 115, 22))
-        mouth_w = 40 + int(abs(math.sin(t * 10)) * 45) # ปากขยับตามจังหวะพูด
+        mouth_w = 40 + int(abs(math.sin(t * 10)) * 45)
         draw.rectangle([cx - mouth_w, cy + 35, cx + mouth_w, cy + 55], fill=(24, 24, 27))
-        # เสาอากาศ
         draw.line([(cx, cy - 90), (cx, cy - 145)], fill=(24, 24, 27), width=8)
         draw.ellipse([cx - 18, cy - 175, cx + 18, cy - 139], fill=(249, 115, 22), outline=(24, 24, 27), width=5)
 
-        # แถบ Progress Bar วิ่งตามเวลาจริง
+        # แถบ Progress Bar
         progress = min(1.0, t / total_duration)
         draw.rectangle([85, 1100, 995, 1122], fill=(228, 228, 231), outline=(24, 24, 27), width=4)
         draw.rectangle([85, 1100, 85 + int(910 * progress), 1122], fill=(249, 115, 22))
@@ -162,9 +158,7 @@ async def generate_reels_video(req: ReelsRequest):
         sub_lines = wrap_thai_text(active_caption, font_sub, 860, draw)[:3]
         box_h = max(140, len(sub_lines) * 65 + 50)
         box_top = 1210
-        # เงากล่องซับไตเติล
         draw.rounded_rectangle([85, box_top + 12, 1005, box_top + box_h + 12], radius=24, fill=(24, 24, 27))
-        # ตัวกล่องซับไตเติลสีขาวขอบดำ
         draw.rounded_rectangle([75, box_top, 995, box_top + box_h], radius=24, fill=(255, 255, 255), outline=(24, 24, 27), width=6)
 
         sy = box_top + 25
@@ -179,7 +173,7 @@ async def generate_reels_video(req: ReelsRequest):
 
         img.save(f"{frames_dir}/frame_{frame_idx:05d}.jpg", quality=85)
 
-    # 4. รวมเฟรมทั้งหมดกับเสียงพูด .mp3 เป็นไฟล์ .mp4 ด้วย FFmpeg
+    # 4. รวมเฟรมทั้งหมดกับเสียงพูด .mp3 เป็นไฟล์ .mp4
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     cmd = [
         ffmpeg_exe, "-y",
