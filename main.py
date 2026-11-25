@@ -8,32 +8,12 @@ import re
 import math
 import subprocess
 import traceback
-import requests
 import imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 
-FONT_PATH = "/tmp/ThaiFont-Bold.ttf"
-
-def ensure_thai_font():
-    if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) < 10000:
-        os.remove(FONT_PATH)
-    if not os.path.exists(FONT_PATH):
-        urls = (
-            "https://jsdelivr.net",
-            "https://jsdelivr.net",
-            "https://jsdelivr.net"
-        )
-        for url in urls:
-            try:
-                r = requests.get(url, timeout=30)
-                if r.status_code == 200 and len(r.content) > 10000:
-                    with open(FONT_PATH, "wb") as f:
-                        f.write(r.content)
-                    break
-            except Exception:
-                continue
+FONT_PATH = "tahoma.ttf"
 
 class TTSRequest(BaseModel):
     input: str
@@ -86,7 +66,9 @@ def format_srt_time(seconds):
 @app.post("/v1/video/reels")
 async def generate_reels_video(req: ReelsRequest):
     try:
-        ensure_thai_font()
+        if not os.path.exists(FONT_PATH):
+            return Response(content=f"Font file {FONT_PATH} not found in repo!", media_type="text/plain", status_code=500)
+
         job_id = str(uuid.uuid4())
         audio_path = f"/tmp/{job_id}.mp3"
         srt_path = f"/tmp/{job_id}.srt"
@@ -119,60 +101,60 @@ async def generate_reels_video(req: ReelsRequest):
                 srt_f.write(f"{s}\n\n")
                 curr_t += seg_dur
 
-        # 3. วาดแอนิเมชันวนลูปสั้นๆ แค่ 2 วินาที (30 เฟรม — ใช้ RAM น้อยมากและเร็วสุดๆ)
-        fps = 15
+        # 3. วาดแอนิเมชัน HD 720x1280 วนลูป 2 วินาที (20 เฟรม — เรนเดอร์เสร็จใน 10 วินาที!)
+        fps = 10
         loop_seconds = 2
         loop_frames = fps * loop_seconds
-        font_brand = ImageFont.truetype(FONT_PATH, 28)
-        font_topic = ImageFont.truetype(FONT_PATH, 54)
-        font_cta = ImageFont.truetype(FONT_PATH, 30)
+        font_brand = ImageFont.truetype(FONT_PATH, 20)
+        font_topic = ImageFont.truetype(FONT_PATH, 38)
+        font_cta = ImageFont.truetype(FONT_PATH, 22)
 
         for frame_idx in range(loop_frames):
             phase = (frame_idx / loop_frames) * (2 * math.pi)
-            img = Image.new("RGB", (1080, 1920), (253, 244, 232))
+            img = Image.new("RGB", (720, 1280), (253, 244, 232))
             draw = ImageDraw.Draw(img)
 
-            # ตาราง Grid เคลื่อนไหววนลูปเนียนๆ
-            offset = int((frame_idx / loop_frames) * 80)
-            for gx in range(offset, 1080, 80):
-                draw.line(((gx, 0), (gx, 1920)), fill=(242, 228, 210), width=2)
-            for gy in range(offset, 1920, 80):
-                draw.line(((0, gy), (1080, gy)), fill=(242, 228, 210), width=2)
+            # ตาราง Grid เคลื่อนไหววนลูป
+            offset = int((frame_idx / loop_frames) * 60)
+            for gx in range(offset, 720, 60):
+                draw.line(((gx, 0), (gx, 1280)), fill=(242, 228, 210), width=2)
+            for gy in range(offset, 1280, 60):
+                draw.line(((0, gy), (720, gy)), fill=(242, 228, 210), width=2)
 
             # กรอบนอก
-            draw.rectangle((36, 36, 1044, 1884), outline=(24, 24, 27), width=10)
+            draw.rectangle((24, 24, 696, 1256), outline=(24, 24, 27), width=8)
 
             # ป้ายชื่อเพจด้านบน
-            draw.rounded_rectangle((85, 125, 530, 188), radius=30, fill=(249, 115, 22))
-            draw.text((110, 138), "AI Work Flow Automation", fill=(255, 255, 255), font=font_brand)
+            draw.rounded_rectangle((56, 85, 365, 130), radius=22, fill=(249, 115, 22))
+            draw.text((74, 95), "AI Work Flow Automation", fill=(255, 255, 255), font=font_brand)
 
             # พาดหัว Topic ด้านบน
-            topic_lines = wrap_thai_text(req.topic, font_topic, 900, draw)[:2]
-            ty = 230
+            topic_lines = wrap_thai_text(req.topic, font_topic, 600, draw)[:2]
+            ty = 155
             for line in topic_lines:
-                draw.text((85, ty), line, fill=(24, 24, 27), font=font_topic)
-                ty += 72
+                draw.text((56, ty), line, fill=(24, 24, 27), font=font_topic)
+                ty += 50
 
             # หุ่นยนต์ Pixel AI ขยับขึ้นลง + ขยับตา + ขยับปากวนลูป
-            bounce = int(math.sin(phase) * 18)
-            cx, cy = 540, 780 + bounce
-            draw.rectangle((cx - 210, cy - 210, cx + 230, cy + 230), fill=(24, 24, 27))
-            draw.rectangle((cx - 225, cy - 225, cx + 215, cy + 215), fill=(255, 237, 213), outline=(24, 24, 27), width=8)
-            draw.rectangle((cx - 110, cy - 90, cx + 110, cy + 90), fill=(255, 255, 255), outline=(24, 24, 27), width=8)
-            eye_shift = int(math.cos(phase) * 10)
-            draw.rectangle((cx - 65 + eye_shift, cy - 35, cx - 25 + eye_shift, cy + 5), fill=(249, 115, 22))
-            draw.rectangle((cx + 25 + eye_shift, cy - 35, cx + 65 + eye_shift, cy + 5), fill=(249, 115, 22))
-            mouth_w = 40 + int(abs(math.sin(phase * 3)) * 45)
-            draw.rectangle((cx - mouth_w, cy + 35, cx + mouth_w, cy + 55), fill=(24, 24, 27))
-            draw.line(((cx, cy - 90), (cx, cy - 145)), fill=(24, 24, 27), width=8)
-            draw.ellipse((cx - 18, cy - 175, cx + 18, cy - 139), fill=(249, 115, 22), outline=(24, 24, 27), width=5)
+            bounce = int(math.sin(phase) * 12)
+            cx, cy = 360, 520 + bounce
+            draw.rectangle((cx - 140, cy - 140, cx + 152, cy + 152), fill=(24, 24, 27))
+            draw.rectangle((cx - 150, cy - 150, cx + 142, cy + 142), fill=(255, 237, 213), outline=(24, 24, 27), width=6)
+            draw.rectangle((cx - 75, cy - 60, cx + 75, cy + 60), fill=(255, 255, 255), outline=(24, 24, 27), width=6)
+            eye_shift = int(math.cos(phase) * 8)
+            draw.rectangle((cx - 45 + eye_shift, cy - 25, cx - 18 + eye_shift, cy + 5), fill=(249, 115, 22))
+            draw.rectangle((cx + 18 + eye_shift, cy - 25, cx + 45 + eye_shift, cy + 5), fill=(249, 115, 22))
+            mouth_w = 26 + int(abs(math.sin(phase * 3)) * 30)
+            draw.rectangle((cx - mouth_w, cy + 24, cx + mouth_w, cy + 38), fill=(24, 24, 27))
+            draw.line(((cx, cy - 60), (cx, cy - 98)), fill=(24, 24, 27), width=6)
+            draw.ellipse((cx - 12, cy - 118, cx + 12, cy - 94), fill=(249, 115, 22), outline=(24, 24, 27), width=4)
 
             # กล่องพื้นหลังซับไตเติลตรงกลางล่าง
-            draw.rounded_rectangle((85, 1192, 1005, 1452), radius=24, fill=(24, 24, 27))
-            draw.rounded_rectangle((75, 1180, 995, 1440), radius=24, fill=(255, 255, 255), outline=(24, 24, 27), width=6)
+            draw.rounded_rectangle((56, 795, 672, 975), radius=18, fill=(24, 24, 27))
+            draw.rounded_rectangle((48, 785, 664, 965), radius=18, fill=(255, 255, 255), outline=(24, 24, 27), width=5)
 
             # ข้อความ CTA ด้านล่างสุด
-            draw.text((135, 1610), "กดติดตาม & คอมเมนต์ 'สนใจ' เพื่อรับเทมเพลตฟรี!", fill=(120, 53, 15), font=font_cta)
+            draw.text((82, 1075), "กดติดตาม & คอมเมนต์ 'สนใจ' เพื่อรับเทมเพลตฟรี!", fill=(120, 53, 15), font=font_cta)
 
             img.save(f"{frames_dir}/frame_{frame_idx:03d}.jpg", quality=85)
 
@@ -185,14 +167,14 @@ async def generate_reels_video(req: ReelsRequest):
             "-c:v", "libx264", "-pix_fmt", "yuv420p", loop_video_path
         ), check=True)
 
-        # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทย + รวมเสียงคุณนิวัฒน์ในคำสั่งเดียว
-        sub_style = "FontName=Sarabun,FontSize=20,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=520"
+        # 4. วนลูปวิดีโอ + ใส่ซับไตเติลภาษาไทย + รวมเสียงคุณนิวัฒน์
+        sub_style = "FontName=Tahoma,FontSize=15,PrimaryColour=&H001B1818,OutlineColour=&H00FFFFFF,BorderStyle=1,Outline=2,Alignment=2,MarginV=345"
         subprocess.run((
             ffmpeg_exe, "-y",
             "-stream_loop", "-1",
             "-i", loop_video_path,
             "-i", audio_path,
-            "-vf", f"subtitles={srt_path}:fontsdir=/tmp:force_style='{sub_style}'",
+            "-vf", f"subtitles={srt_path}:fontsdir=.:force_style='{sub_style}'",
             "-c:v", "libx264", "-preset", "ultrafast",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
