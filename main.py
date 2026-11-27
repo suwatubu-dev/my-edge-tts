@@ -12,7 +12,7 @@ import edge_tts
 
 app = FastAPI()
 
-FONT_PATH = "/tmp/NotoSansThai.ttf"
+FONT_PATH = "/tmp/Sarabun-Bold.ttf"
 
 def ensure_fonts():
     font_url = "https://githubusercontent.com"
