@@ -228,3 +228,51 @@ async def generate_reels_video(req: ReelsRequest):
         return FileResponse(final_video_path, media_type="video/mp4", filename="reels_animation.mp4")
     except Exception:
         return Response(content=traceback.format_exc(), media_type="text/plain", status_code=500)
+import uuid
+import urllib.request
+import subprocess
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+import edge_tts
+
+class AnimationReelsRequest(BaseModel):
+    video_url: str
+    script: str
+    voice: str = "th-TH-NiwatNeural"
+    rate: str = "+5%"
+
+@app.post("/v1/video/reels-animation")
+async def create_animation_reels(req: AnimationReelsRequest):
+    job_id = str(uuid.uuid4())
+    raw_video_path = f"/tmp/{job_id}_raw.mp4"
+    audio_path = f"/tmp/{job_id}_voice.mp3"
+    output_path = f"/tmp/{job_id}_final.mp4"
+
+    try:
+        urllib.request.urlretrieve(req.video_url, raw_video_path)
+
+        communicate = edge_tts.Communicate(req.script, req.voice, rate=req.rate)
+        await communicate.save(audio_path)
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", raw_video_path,
+            "-i", audio_path,
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-shortest",
+            output_path
+        ]
+        subprocess.run(cmd, check=True)
+
+        return FileResponse(output_path, media_type="video/mp4", filename="reels_animation.mp4")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
