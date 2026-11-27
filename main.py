@@ -12,20 +12,14 @@ import edge_tts
 
 app = FastAPI()
 
-FONT_PATH = "/tmp/NotoSansThai-Bold.ttf"
-FONT_REG_PATH = "/tmp/NotoSansThai-Regular.ttf"
+FONT_PATH = "/tmp/NotoSansThai.ttf"
 
 def ensure_fonts():
-    if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 10000:
-        urllib.request.urlretrieve(
-            "https://gstatic.com",
-            FONT_PATH
-        )
-    if not os.path.exists(FONT_REG_PATH) or os.path.getsize(FONT_REG_PATH) < 10000:
-        urllib.request.urlretrieve(
-            "https://gstatic.com",
-            FONT_REG_PATH
-        )
+    font_url = "https://githubusercontent.com"
+    if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 50000:
+        req = urllib.request.Request(font_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as resp, open(FONT_PATH, "wb") as out:
+            out.write(resp.read())
 
 class ReelsRequest(BaseModel):
     topic: str = "อัปเดต AI Automation ลดงานซ้ำซาก"
@@ -57,11 +51,11 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
     total_frames = fps * loop_seconds
 
     font_badge = ImageFont.truetype(FONT_PATH, 22)
-    font_brand = ImageFont.truetype(FONT_REG_PATH, 22)
+    font_brand = ImageFont.truetype(FONT_PATH, 22)
     font_title = ImageFont.truetype(FONT_PATH, 46)
     font_step_tag = ImageFont.truetype(FONT_PATH, 20)
     font_node = ImageFont.truetype(FONT_PATH, 30)
-    font_sub = ImageFont.truetype(FONT_REG_PATH, 24)
+    font_sub = ImageFont.truetype(FONT_PATH, 24)
 
     wrapped_topic = "\n".join(textwrap.wrap(req.topic, width=22))[:90]
 
