@@ -1,4 +1,5 @@
 import os
+import glob
 import math
 import uuid
 import textwrap
@@ -14,12 +15,47 @@ app = FastAPI()
 
 FONT_PATH = "/tmp/Sarabun-Bold.ttf"
 
-def ensure_fonts():
-    font_url = "https://githubusercontent.com"
-    if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 50000:
-        req = urllib.request.Request(font_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as resp, open(FONT_PATH, "wb") as out:
-            out.write(resp.read())
+def get_thai_font_path() -> str:
+    # 1. เช็กฟอนต์ที่โหลดไว้แล้วใน /tmp
+    if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) > 50000:
+        return FONT_PATH
+
+    # 2. ค้นหาฟอนต์ภาษาไทยที่ติดตั้งอยู่ในระบบ Linux ของ Render (ไม่ต้องง้อเน็ต)
+    system_patterns = [
+        "/usr/share/fonts/**/NotoSansThai*.ttf",
+        "/usr/share/fonts/**/Sarabun*.ttf",
+        "/usr/share/fonts/**/Garuda*.ttf",
+        "/usr/share/fonts/**/Kinnari*.ttf",
+        "/usr/share/fonts/**/Waree*.ttf",
+        "/usr/share/fonts/**/Loma*.ttf",
+        "/usr/share/fonts/**/*.ttf",
+    ]
+    for pattern in system_patterns:
+        matches = glob.glob(pattern, recursive=True)
+        for m in matches:
+            if "Thai" in m or "Sarabun" in m or "Garuda" in m or "Waree" in m or "Loma" in m:
+                return m
+
+    # 3. โหลดจาก CDN สำรองหลายแหล่ง
+    urls = [
+        "https://jsdelivr.net",
+        "https://githubusercontent.com",
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp, open(FONT_PATH, "wb") as out:
+                out.write(resp.read())
+            if os.path.exists(FONT_PATH) and os.path.getsize(FONT_PATH) > 50000:
+                return FONT_PATH
+        except Exception:
+            continue
+
+    # 4. ฟอนต์ระบบตัวไหนก็ได้ที่มีในเครื่อง (กัน Error 500 เด็ดขาด)
+    fallback = glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
+    if fallback:
+        return fallback[0]
+    return ""
 
 class ReelsRequest(BaseModel):
     topic: str = "อัปเดต AI Automation ลดงานซ้ำซาก"
@@ -45,17 +81,25 @@ def get_audio_duration(audio_path: str) -> float:
 def draw_rounded_box(draw, xy, radius, fill, outline=None, width=3):
     draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline, width=width)
 
+def load_font(font_path: str, size: int):
+    if font_path:
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
 def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, loop_seconds: int = 4):
-    ensure_fonts()
+    font_path = get_thai_font_path()
     W, H = 720, 1280
     total_frames = fps * loop_seconds
 
-    font_badge = ImageFont.truetype(FONT_PATH, 22)
-    font_brand = ImageFont.truetype(FONT_PATH, 22)
-    font_title = ImageFont.truetype(FONT_PATH, 46)
-    font_step_tag = ImageFont.truetype(FONT_PATH, 20)
-    font_node = ImageFont.truetype(FONT_PATH, 30)
-    font_sub = ImageFont.truetype(FONT_PATH, 24)
+    font_badge = load_font(font_path, 22)
+    font_brand = load_font(font_path, 22)
+    font_title = load_font(font_path, 46)
+    font_step_tag = load_font(font_path, 20)
+    font_node = load_font(font_path, 30)
+    font_sub = load_font(font_path, 24)
 
     wrapped_topic = "\n".join(textwrap.wrap(req.topic, width=22))[:90]
 
@@ -79,9 +123,9 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
         draw.ellipse([W//2 - glow_r, 820 - glow_r//2, W//2 + glow_r, 820 + glow_r], fill=(168, 85, 247, 25))
 
         # 3. แถบหัวข้อด้านบน (Header Badge)
-        draw_rounded_box(draw, [48, 60, 330, 108], radius=24, fill=(56, 189, 248, 255))
-        draw.text((68, 70), "N8N AUTO WORKFLOW", font=font_badge, fill=(10, 15, 28))
-        draw.text((350, 70), "AI Work Flow Automation", font=font_brand, fill=(148, 163, 184))
+        draw_rounded_box(draw, [48, 56, 330, 108], radius=24, fill=(56, 189, 248, 255))
+        draw.text((68, 68), "N8N AUTO WORKFLOW", font=font_badge, fill=(10, 15, 28))
+        draw.text((350, 68), "AI Work Flow Automation", font=font_brand, fill=(148, 163, 184))
 
         # 4. พาดหัวเรื่อง (Topic)
         draw.multiline_text((48, 145), wrapped_topic, font=font_title, fill=(255, 255, 255), spacing=12)
