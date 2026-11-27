@@ -12,18 +12,18 @@ import edge_tts
 
 app = FastAPI()
 
-FONT_PATH = "/tmp/Prompt-Bold.ttf"
-FONT_REG_PATH = "/tmp/Prompt-Regular.ttf"
+FONT_PATH = "/tmp/NotoSansThai-Bold.ttf"
+FONT_REG_PATH = "/tmp/NotoSansThai-Regular.ttf"
 
 def ensure_fonts():
-    if not os.path.exists(FONT_PATH):
+    if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 10000:
         urllib.request.urlretrieve(
-            "https://github.com",
+            "https://gstatic.com",
             FONT_PATH
         )
-    if not os.path.exists(FONT_REG_PATH):
+    if not os.path.exists(FONT_REG_PATH) or os.path.getsize(FONT_REG_PATH) < 10000:
         urllib.request.urlretrieve(
-            "https://github.com",
+            "https://gstatic.com",
             FONT_REG_PATH
         )
 
@@ -53,7 +53,7 @@ def draw_rounded_box(draw, xy, radius, fill, outline=None, width=3):
 
 def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, loop_seconds: int = 4):
     ensure_fonts()
-    W, H = 720, 1280  # 9:16 HD Reels (เรนเดอร์ไวบน Render Free Tier)
+    W, H = 720, 1280
     total_frames = fps * loop_seconds
 
     font_badge = ImageFont.truetype(FONT_PATH, 22)
@@ -66,7 +66,7 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
     wrapped_topic = "\n".join(textwrap.wrap(req.topic, width=22))[:90]
 
     for f in range(total_frames):
-        t = f / total_frames  # 0.0 -> 1.0 (ลูปเนียนไร้รอยต่อ)
+        t = f / total_frames
         img = Image.new("RGB", (W, H), (10, 15, 28))
         draw = ImageDraw.Draw(img, "RGBA")
 
@@ -85,9 +85,9 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
         draw.ellipse([W//2 - glow_r, 820 - glow_r//2, W//2 + glow_r, 820 + glow_r], fill=(168, 85, 247, 25))
 
         # 3. แถบหัวข้อด้านบน (Header Badge)
-        draw_rounded_box(draw, [45, 65, 330, 112], radius=24, fill=(56, 189, 248, 255))
-        draw.text((68, 74), "N8N AUTO WORKFLOW", font=font_badge, fill=(10, 15, 28))
-        draw.text((350, 74), "AI Work Flow Automation", font=font_brand, fill=(148, 163, 184))
+        draw_rounded_box(draw, [48, 60, 330, 108], radius=24, fill=(56, 189, 248, 255))
+        draw.text((68, 70), "N8N AUTO WORKFLOW", font=font_badge, fill=(10, 15, 28))
+        draw.text((350, 70), "AI Work Flow Automation", font=font_brand, fill=(148, 163, 184))
 
         # 4. พาดหัวเรื่อง (Topic)
         draw.multiline_text((48, 145), wrapped_topic, font=font_title, fill=(255, 255, 255), spacing=12)
@@ -110,7 +110,6 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
         for idx, n in enumerate(nodes):
             ny = n["y"]
             r, g, b = n["color"]
-            # เช็กว่าจุดแสงวิ่งผ่านโหนดนี้หรือไม่ เพื่อเพิ่มความสว่างขอบกล่อง
             dist = abs(orb_y - (ny + 65))
             active_boost = max(0, 1 - dist / 140)
             border_w = int(3 + 4 * active_boost)
@@ -124,8 +123,8 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
                 outline=(r, g, b, 255),
                 width=border_w
             )
-            draw.text((95, ny + 22), n["tag"], font=font_step_tag, fill=(r, g, b))
-            draw.text((95, ny + 62), n["text"][:28], font=font_node, fill=(248, 250, 252))
+            draw.text((95, ny + 18), n["tag"], font=font_step_tag, fill=(r, g, b))
+            draw.text((95, ny + 56), n["text"][:28], font=font_node, fill=(248, 250, 252))
 
         # 6. แถบ Audio Visualizer ด้านล่างขยับตามจังหวะเสียง
         num_bars = 28
@@ -145,7 +144,7 @@ def render_animation_frames(req: ReelsRequest, frames_dir: str, fps: int = 12, l
             )
 
         # 7. ข้อความ CTA ด้านล่างสุด
-        draw.text((135, 1170), "คอมเมนต์ \"สนใจ\" รับคู่มือทำตามฟรี!", font=font_sub, fill=(203, 213, 225))
+        draw.text((135, 1165), "คอมเมนต์ \"สนใจ\" รับคู่มือทำตามฟรี!", font=font_sub, fill=(203, 213, 225))
 
         img.save(f"{frames_dir}/frame_{f:04d}.png", "PNG")
 
